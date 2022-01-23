@@ -27,7 +27,8 @@ def isHTML(file):
 	"""
 	Func to check if a file is an .htm or .html
 	"""	
-	pass
+	is_html = ".html" in file or ".html" in file
+	return is_html
 
 def makeResponse(body, file, status):
 	"""
@@ -39,15 +40,40 @@ def checkExists(file):
 	"""
 	Func to check if the file requested by the client exists in the directory
 	"""
-	pass
+	# Return file_exists(file)
+	exists = file_exists(file)
+	return exists
 
 def main(port):
 	"""
 	Func to hold the server logic/loop
 	"""
+	# Create Welcome Socket
+	servPort = port
+	servSocket = socket(AF_INET, SOCK_STREAM)
+	
+	# Attempt to bind socket
+	try:
+		# Bind
+		servSocket.bind(("", servPort))
+		# Listen for conn(s)
+		servSocket.listen(1)
 
-	pass
+	# Get error exception
+	except error:
+		# Print Error
+		print(error)
 
+	# Server Loop
+	while True:
+		# Accept conn
+		connSocket, addr = servSocket.accept()
+		# Get 1024 Bytes from the socket
+		req = connSocket.recv(1024).decode()
+		# Print the req
+		print(req)
+		# Close Socket
+		connSocket.close()
 
 if __name__ == '__main__':
 	# Get Port come cmdline
