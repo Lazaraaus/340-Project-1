@@ -30,6 +30,31 @@ def isHTML(file):
 	is_html = ".html" in file or ".html" in file
 	return is_html
 
+def parseHeaderContent(req):
+	"""
+	Func to parse Header Content in GET req.	
+	I think this should work (regex101). Should match the GET verb and the pull the file
+	req'd into the 1st capture group.
+
+	Alternatively, you can just tokenize the req using splits on newline and space respectively.
+
+	I believe the regex is faster though
+	"""
+	# Tokenize the req
+	tokenized_req = req.split("\n")
+	# Get HTTP Action Line tokens
+	action_line_toks = tokenized_req[0].split()
+	# Get Verb, HTTP Version, Filename
+	http_verb, http_ver, req_file = action_line_toks[0], action_line_toks[2], action_line_toks[1]
+
+
+	# Compile Pattern
+	pattern = re.compile('GET\s/(.*?)\s')
+	# Parse Header w/ Pattern
+	parsed_req = re.findall(pattern, req)
+	# Retern Parsed req
+	return parsed_req, http_verb, http_ver, req_file
+
 def makeResponse(body, file, status):
 	"""
 	Func to construct an HTTP Response for a client's HTTP Request
@@ -72,6 +97,13 @@ def main(port):
 		req = connSocket.recv(1024).decode()
 		# Print the req
 		print(req)
+		tokenized_req = req.split("\n")
+		print(f"\nThe tokenized req is: {tokenized_req}")
+		parsed_req, http_verb, http_ver, req_file = parseHeaderContent(req)
+		print(f"\nThe parsed req is: {parsed_req}")
+		print(f"\nThe HTTP Verb: {http_verb}\nThe HTTP Ver: {http_ver}\nThe Requested File: {req_file}")
+		exists = checkExists(req_file)
+		print(exists)
 		# Close Socket
 		connSocket.close()
 
