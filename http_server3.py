@@ -3,6 +3,8 @@ from socket import *
 from os.path import exists as file_exists
 import re
 import sys
+import json
+import math
 
 # Globals 
 ERROR_HTML_404 = '''<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN">\r\n<html><head>\r\n<title>403 Forbidden</title>\r\n</head><body><h1>Access Refused</h1>\r\n<p>The requested URL was forbidden on this server.</p>\r\n</body></html>'''
@@ -26,34 +28,69 @@ def parseHeaderContent(req):
 
 	I believe the regex is faster though
 	"""
+	# Example Query: GET /product?a=12&b=60&another=0.5
 	# Tokenize the req
 	tokenized_req = req.split("\n")
 	# Get HTTP Action Line tokens
-	action_line_toks = tokenized_req[0].split()
-	# Get Verb, HTTP Version, Filename
-	http_verb, http_ver, req_file = action_line_toks[0], action_line_toks[2], action_line_toks[1]
-	req_file = req_file.replace("/", "")
+	action_line_toks = tokenized_req[0]
+	# Split on &
+	action_line_toks = action_line_toks.split("&")
+	print(f"Action Line Tokens: {action_line_toks}\n")
+	req_first_arg_toks = action_line_toks[0].split(" ")
+	req_first_arg_toks = req_first_arg_toks[1].split("?")
+	req_endpoint = req_first_arg_toks[0]
+	print(f"The request endpoint is: {req_endpoint}\n")
+	first_arg = req_first_arg_toks[1].split("=")[1]
+	second_arg = action_line_toks[1].split("=")[1]
+	third_arg = action_line_toks[2].split(" ")[0].split("=")[1]	
+	print(action_line_toks[2])
+	print(f"The first arg: {first_arg}\nThe second arg: {second_arg}\nThe third arg: {third_arg}\n")
 
 	# Retern Parsed req
-	return http_verb, http_ver, req_file
+	return req_endpoint, first_arg, second_arg, third_arg
 
-def makeResponse(file, status):
+def makeResponse(arg1, arg2, arg3, status, all_floats=True):
 	"""
 	Func to construct an HTTP Response for a client's HTTP Request.
 	Needs to construct Header and attach file contents to the body of the HTTP msg
 	"""
 	global ERROR_HTML_403, ERROR_HTML_404
 	# Header will always have these attribs
-	header = "HTTP/1.1 " + status + "\r\nContent-Type: text/html\r\n\r\n"
+	header = "HTTP/1.1 " + status + "\r\nContent-Type: application/json\r\n\r\n"
 	print(header)
 	# Check for status
 	if status == '200 OK':
-		with open(file, 'r') as f:
-			# Get contents of files
-			header += f.read()
-			f.close()
-		# Return Header
-		return header.encode()
+		if all_floats:
+			# Calc Product
+			product = float(arg1) * float(arg2) * float(arg3)
+			# Check for inf
+			if math.isinf(product):
+				# If so, make str "inf"
+				product = "inf"
+			# Build resp dict
+			resp = {
+				"operation": "product",
+				"operands": [float(arg1), float(arg2), float(arg3)],
+				"result": product
+			}
+			# Dump to JSON
+			resp = json.dumps(resp)
+			# Append to header
+			header += resp
+			# Return Header
+			return header.encode()
+		else:
+			product = float(arg1)	
+			if math.isinf(product):
+				product = "inf"
+			resp = {
+				"operation": "product",
+				"operands": [float(arg1), arg2, arg3],
+				"result": product
+			}
+			resp = json.dumps(resp)
+			header += resp
+			return header.encode()
 	# Check for 404
 	elif status == '404 Not Found':
 		# Get 404 error HTML
@@ -78,6 +115,41 @@ def checkExists(file):
 	# Return file_exists(file)
 	exists = file_exists(file)
 	return exists
+
+def checkGoodInputs(args):
+	# Check if all args exist
+	if all(args):
+		# Loop through args
+		for arg in args:
+			# Try
+			try:
+				# Cast arg to float
+				flt_arg = float(arg)
+			except:
+				# If not, return false
+				return False
+		# Otherwise, return True	
+		return True
+
+def checkOneGoodInput(args):
+	# Check for at least one non-empty input
+	if any(args):
+		# Var to hold return val
+		return_val = ''
+		# Loop through args
+		for idx, arg in enumerate(args):
+			try:
+				# Try to cast to float
+				flt_arg = float(arg)
+				# If so, set as return_val
+				return_val = flt_arg
+			except:
+				# Check if end of arg list
+				if idx == len(args):
+					# If so, return False and empty return_val
+					return (False, '')
+		# Return True, return_val
+		return (True, str(int(return_val)))
 
 def main(port):
 	"""
@@ -107,28 +179,35 @@ def main(port):
 		req = connSocket.recv(1024).decode()
 
 		# Parse the Req
-		parsed_req, http_verb, http_ver, req_file = parseHeaderContent(req)
+		req_endpoint, first_arg, second_arg, third_arg = parseHeaderContent(req)
 
 		# Check if file exists on server
-		if checkExists(req_file):
-			# Check if HTML/HTM
-			if isHTML(req_file):
+		if req_endpoint == '/product':
+			# Check All Good Inputs
+			if checkGoodInputs([first_arg, second_arg, third_arg]):
 				# Construct 200 OK Message
-				http_msg = makeResponse(req_file, '200 OK')
+				http_msg = makeResponse(first_arg, second_arg, third_arg, '200 OK')
 				# Send 200 OK Message
 				connSocket.send(http_msg)
-				
+			
+			elif checkOneGoodInput([first_arg, second_arg, third_arg])[0]:	
+				args = [first_arg, second_arg, third_arg]
+				good_val = checkOneGoodInput(args)[1]
+				print(good_val)	
+				args.remove(good_val)		
+				http_msg = makeResponse(good_val, args[0], args[1], '200 OK', all_floats=False)
+				connSocket.send(http_msg)
 			# Otherwise
 			else:
 				# Construct 403 Forbidden Message
-				http_msg = makeResponse('', '403 Forbidden')
+				http_msg = makeResponse('', '', '', '403 Forbidden')
 				# Send 403 Forbidden Message
 				connSocket.send(http_msg)
 			
 		# Otherwise
 		else:
 			# Construct 404 Not Found Message
-			http_msg = makeResponse('', '404 Not Found')
+			http_msg = makeResponse('', '', '', '404 Not Found')
 			# Send 403 Forbidden Message
 			connSocket.send(http_msg)
 
