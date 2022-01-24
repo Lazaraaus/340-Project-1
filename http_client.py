@@ -68,10 +68,11 @@ def http_client(url):
     response = response[9:]
     response = response.split('\r\n')
 
-    
+    #get status from response -- alwasy the first 0-3 index
     status = response[0][:3]
     response_len = len(response)
 
+    #check statuses and execute rules
     if status == "200":
         for i in range(response_len):
             if response[i].find('Content-Type: text/html') != -1:
