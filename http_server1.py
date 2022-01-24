@@ -6,18 +6,18 @@
 # Goal: Write an HTTP Server that handles one connection and serves any files that end in .html or .htm
 # Should have cmd line interface: python3 http_server.py [port]
 
-
 # Create a welcoming TCP socket
 # Bind that socket to the [port] given by the user
 # Listen for TCP connections
 # Do the following:
 	# Accept new connection on the socket		func: main()
-	# Read the HTTP request		func: Strip file name from HTTP Get Header
+	# Read the HTTP request		func: parseHeaderContent
 	# See if the file exists	func: checkExists()
 	# If so, construct HTTP response. Write and send header, then open the file and write its contents to the conn socket 	func: makeResponse()
 	# If not, construct the proper HTTP response (404 Not Found) or (403 Forbidden) 					func: makeResponse()
 	# Close the socket
 
+# Imports
 from socket import *
 from os.path import exists as file_exists
 import re
@@ -27,7 +27,7 @@ import sys
 ERROR_HTML_404 = '''<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN">\r\n<html><head>\r\n<title>403 Forbidden</title>\r\n</head><body><h1>Access Refused</h1>\r\n<p>The requested URL was forbidden on this server.</p>\r\n</body></html>'''
 ERROR_HTML_403 = '''<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN">\r\n<html><head>\r\n<title>404 Not Found</title>\r\n</head><body><h1>Not Found</h1>\r\n<p>The requested URL was forbidden on this server.</p>\r\n</body></html>'''
 
-
+# Funcs
 def isHTML(file):
 	"""
 	Func to check if a file is an .htm or .html
@@ -53,12 +53,8 @@ def parseHeaderContent(req):
 	http_verb, http_ver, req_file = action_line_toks[0], action_line_toks[2], action_line_toks[1]
 	req_file = req_file.replace("/", "")
 
-	# Compile Pattern
-	pattern = re.compile('GET\s/(.*?)\s')
-	# Parse Header w/ Pattern
-	parsed_req = re.findall(pattern, req)
 	# Retern Parsed req
-	return parsed_req, http_verb, http_ver, req_file
+	return http_verb, http_ver, req_file
 
 def makeResponse(file, status):
 	"""
@@ -130,15 +126,7 @@ def main(port):
 		req = connSocket.recv(1024).decode()
 
 		# Parse the Req
-		# Print the req
-		print(req)
-		tokenized_req = req.split("\n")
-		print(f"\nThe tokenized req is: {tokenized_req}")
 		parsed_req, http_verb, http_ver, req_file = parseHeaderContent(req)
-		print(f"\nThe parsed req is: {parsed_req}")
-		print(f"\nThe HTTP Verb: {http_verb}\nThe HTTP Ver: {http_ver}\nThe Requested File: {req_file}")
-		exists = checkExists(req_file)
-		print(exists)
 
 		# Check if file exists on server
 		if checkExists(req_file):
