@@ -23,6 +23,11 @@ from os.path import exists as file_exists
 import re
 import sys
 
+# Globals 
+ERROR_HTML_404 = '''<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN">\r\n<html><head>\r\n<title>403 Forbidden</title>\r\n</head><body><h1>Access Refused</h1>\r\n<p>The requested URL was forbidden on this server.</p>\r\n</body></html>'''
+ERROR_HTML_403 = '''<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN">\r\n<html><head>\r\n<title>404 Not Found</title>\r\n</head><body><h1>Not Found</h1>\r\n<p>The requested URL was forbidden on this server.</p>\r\n</body></html>'''
+
+
 def isHTML(file):
 	"""
 	Func to check if a file is an .htm or .html
@@ -46,7 +51,7 @@ def parseHeaderContent(req):
 	action_line_toks = tokenized_req[0].split()
 	# Get Verb, HTTP Version, Filename
 	http_verb, http_ver, req_file = action_line_toks[0], action_line_toks[2], action_line_toks[1]
-
+	req_file = req_file.replace("/", "")
 
 	# Compile Pattern
 	pattern = re.compile('GET\s/(.*?)\s')
@@ -55,11 +60,39 @@ def parseHeaderContent(req):
 	# Retern Parsed req
 	return parsed_req, http_verb, http_ver, req_file
 
-def makeResponse(body, file, status):
+def makeResponse(file, status):
 	"""
-	Func to construct an HTTP Response for a client's HTTP Request
+	Func to construct an HTTP Response for a client's HTTP Request.
+	Needs to construct Header and attach file contents to the body of the HTTP msg
 	"""
-	pass
+	global ERROR_HTML_403, ERROR_HTML_404
+	# Header will always have these attribs
+	header = "HTTP/1.1 " + status + "\r\nContent-Type: text/html\r\n\r\n"
+	print(header)
+	# Check for status
+	if status == '200 OK':
+		with open(file, 'r') as f:
+			# Get contents of files
+			header += f.read()
+			f.close()
+		# Return Header
+		return header.encode()
+	# Check for 404
+	elif status == '404 Not Found':
+		# Get 404 error HTML
+		error_html = ERROR_HTML_404
+		# Add to header
+		header += error_html
+		# Return header
+		return header.encode()
+	# Check for 403
+	elif status == '403 Forbidden':
+		# 403 error HTML
+		error_html = ERROR_HTML_403 
+		# Add to header
+		header += error_html
+		# Return header
+		return header.encode()
 
 def checkExists(file):
 	"""
@@ -95,6 +128,8 @@ def main(port):
 		connSocket, addr = servSocket.accept()
 		# Get 1024 Bytes from the socket
 		req = connSocket.recv(1024).decode()
+
+		# Parse the Req
 		# Print the req
 		print(req)
 		tokenized_req = req.split("\n")
@@ -104,6 +139,30 @@ def main(port):
 		print(f"\nThe HTTP Verb: {http_verb}\nThe HTTP Ver: {http_ver}\nThe Requested File: {req_file}")
 		exists = checkExists(req_file)
 		print(exists)
+
+		# Check if file exists on server
+		if checkExists(req_file):
+			# Check if HTML/HTM
+			if isHTML(req_file):
+				# Construct 200 OK Message
+				http_msg = makeResponse(req_file, '200 OK')
+				# Send 200 OK Message
+				connSocket.send(http_msg)
+				
+			# Otherwise
+			else:
+				# Construct 403 Forbidden Message
+				http_msg = makeResponse('', '403 Forbidden')
+				# Send 403 Forbidden Message
+				connSocket.send(http_msg)
+			
+		# Otherwise
+		else:
+			# Construct 404 Not Found Message
+			http_msg = makeResponse('', '404 Not Found')
+			# Send 403 Forbidden Message
+			connSocket.send(http_msg)
+
 		# Close Socket
 		connSocket.close()
 
