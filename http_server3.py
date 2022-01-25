@@ -80,12 +80,18 @@ def makeResponse(arg1, arg2, arg3, status, all_floats=True):
 			# Return Header
 			return header.encode()
 		else:
-			product = float(arg1)	
+			try:
+				product = float(arg1) * float(arg2)
+				arg2 = float(arg2)
+				arg1 = float(arg1)
+			except:
+				product = float(arg1)	
+				arg1 = float(arg1)
 			if math.isinf(product):
 				product = "inf"
 			resp = {
 				"operation": "product",
-				"operands": [float(arg1), arg2, arg3],
+				"operands": [arg1, arg2, arg3],
 				"result": product
 			}
 			resp = json.dumps(resp)
@@ -133,6 +139,7 @@ def checkGoodInputs(args):
 
 def checkOneGoodInput(args):
 	# Check for at least one non-empty input
+	good_inputs = []
 	if any(args):
 		# Var to hold return val
 		return_val = ''
@@ -143,13 +150,15 @@ def checkOneGoodInput(args):
 				flt_arg = float(arg)
 				# If so, set as return_val
 				return_val = flt_arg
+				# If so, append to good_inputs
+				good_inputs.append(str(int(flt_arg)))
 			except:
 				# Check if end of arg list
 				if idx == len(args):
 					# If so, return False and empty return_val
 					return (False, '')
 		# Return True, return_val
-		return (True, str(int(return_val)))
+		return (True, good_inputs)
 
 def main(port):
 	"""
@@ -192,10 +201,18 @@ def main(port):
 			
 			elif checkOneGoodInput([first_arg, second_arg, third_arg])[0]:	
 				args = [first_arg, second_arg, third_arg]
-				good_val = checkOneGoodInput(args)[1]
-				print(good_val)	
-				args.remove(good_val)		
-				http_msg = makeResponse(good_val, args[0], args[1], '200 OK', all_floats=False)
+				# Get good values from query params
+				good_vals = checkOneGoodInput(args)[1]
+				print(good_vals)	
+				# Loop through good_vals and remove each val from args
+				for val in good_vals:
+					args.remove(val)
+				print(args)
+				# Check if more good_vals or bad_args
+				if len(args) > len(good_vals):
+					http_msg = makeResponse(good_vals[0], args[0], args[1], '200 OK', all_floats=False)
+				else:
+					http_msg = makeResponse(good_vals[0], good_vals[1], args[0], '200 OK', all_floats=False)
 				connSocket.send(http_msg)
 			# Otherwise
 			else:
