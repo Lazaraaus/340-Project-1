@@ -36,11 +36,13 @@ def parseHeaderContent(req):
 	"""
 	# Tokenize the req
 	tokenized_req = req.split("\n")
+	print(tokenized_req)
 	# Get HTTP Action Line tokens
 	action_line_toks = tokenized_req[0].split()
 	# Get Verb, HTTP Version, Filename
 	http_verb, http_ver, req_file = action_line_toks[0], action_line_toks[2], action_line_toks[1]
 	req_file = req_file.replace("/", "")
+	print(f"HTTP VERB: {http_verb}\n HTTP VER: {http_ver}\n REQ FILE: {req_file}")
 	# Retern Parsed req
 	return http_verb, http_ver, req_file
 
@@ -93,6 +95,8 @@ def main(port):
 	# Create Welcome Socket
 	servPort = port
 	servSocket = socket(AF_INET, SOCK_STREAM)
+	# Set options for testing
+	servSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 	# Set Blocking to False
 	servSocket.setblocking(0)
 	
@@ -110,44 +114,81 @@ def main(port):
 
 	# Containers for input/output sockets
 	out_sockets = []
-	in_sockets = []
+	in_sockets = [servSocket]
+
 	# Server Loop
-	while True:
-		# Accept conn
-		connSocket, addr = servSocket.accept()
-		# Get 1024 Bytes from the socket
-		req = connSocket.recv(1024).decode()
-
-		# Parse the Req
-		http_verb, http_ver, req_file = parseHeaderContent(req)
-		#print(f"\nThe parsed req is: {parsed_req}")
-		#print(f"\nThe HTTP Verb: {http_verb}\nThe HTTP Ver: {http_ver}\nThe Requested File: {req_file}")
-
-		# Check if file exists on server
-		if checkExists(req_file):
-			# Check if HTML/HTM
-			if isHTML(req_file):
-				# Construct 200 OK Message
-				http_msg = makeResponse(req_file, '200 OK')
-				# Send 200 OK Message
-				connSocket.send(http_msg)
-				
-			# Otherwise
+	while in_sockets:
+		# Call Select and get read_list, write_list, and execp_list
+		read_list, write_list, excep_list = select.select(in_sockets, out_sockets, in_sockets)
+		# Get socket from read_list
+		for conn in read_list:
+			print(f"The socket is: {conn}\n")
+			print(f"The list of out_sockets is: {out_sockets}")
+			print(f"The list of in_sockets is: {in_sockets}")
+			# Check if servSocket
+			if conn is servSocket:
+				# Ready to accept another conn
+				connSocket, addr = conn.accept()	
+				# Test Print
+				print(f"Connection from {connSocket}:{addr}")
+				connSocket.setblocking(1)
+				# Add socket to inputs
+				in_sockets.append(connSocket)
+		
+			# Otherwise, check for data
 			else:
-				# Construct 403 Forbidden Message
-				http_msg = makeResponse('', '403 Forbidden')
-				# Send 403 Forbidden Message
-				connSocket.send(http_msg)
-			
-		# Otherwise
-		else:
-			# Construct 404 Not Found Message
-			http_msg = makeResponse('', '404 Not Found')
-			# Send 403 Forbidden Message
-			connSocket.send(http_msg)
+				# Attempt to read HTTP req
+				req = conn.recv(2048).decode()
+				# Check data exists
+				if req:
+					http_verb, http_ver, req_file = parseHeaderContent(req)	
+					# Check file exists
+					if checkExists(req_file):
+						if isHTML(req_file):
+							print("Constructing 200 OK")
+							# Send 200 OK msg
+							http_msg = makeResponse(req_file, '200 OK')
+							print("Sending 200 OK Message")
+							# Send 200 OK Msg
+							conn.send(http_msg)
+							in_sockets.remove(conn)
+							conn.close()
+							
+						else:
+							print("Constructing 403 Forbidden")	
+							# SEND 403 Forbidden Msg
+							http_msg = makeResponse(req_file, '403 Forbidden')
+							print("Sending 403 Forbidden")
+							# Send 403 msg
+							conn.send(http_msg)
+							in_sockets.remove(conn)
+							conn.close()
+					else:
+						print("Constructing 404 Not Found")
+						# Send 404 Not Found msg
+						http_msg = makeResponse(req_file, '404 Not Found')
+						# Send 404 msg
+						print("Sending 404 Not Found")
+						conn.send(http_msg)
+						in_sockets.remove(conn)
+						conn.close()
+						
 
-		# Close Socket
-		connSocket.close()
+				# 	# Check if in output list	
+				# 	if s not in out_sockets:
+				# 		# If not, Append to output list
+				# 		out_sockets.append(s)
+				# else:
+				# 	# Test Print
+				# 	print(f"Closing: {addr}")
+				# 	# No data, ready to disconnect
+				# 	if s in out_sockets:
+				# 		# Remove from outputs
+				# 		out_sockets.remove(s)
+				# 	# Remove from inputs
+				# 	in_sockets.remove(s)
+				# 	# Close
+				# 	s.close()
 
 if __name__ == '__main__':
 	# Get Port come cmdline
