@@ -1,6 +1,7 @@
 import socket
 import sys
 
+#GLOBAL redirect counter
 redirect_num = 0
 
 def http_client(url):
@@ -8,17 +9,17 @@ def http_client(url):
     global redirect_num
     redirect_num += 1
     if redirect_num == 10:
-        print('Too Many Redirects', file = sys.stderr)
+        print('Error: Too Many Redirects', file = sys.stderr)
         sys.exit(1)
+
 
     #get host and port
-
     #check if url given is valid
     if url[:5] == 'https':
-        print('HTTPS is not accepted in the url', file = sys.stderr)
+        print('Error: HTTPS is not accepted in the url', file = sys.stderr)
         sys.exit(1)
     if url[0:7] != 'http://':
-        print('URL must start with http://', file = sys.stderr)
+        print('Error: URL must start with http://', file = sys.stderr)
         sys.exit(1)
 
 
